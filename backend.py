@@ -50,6 +50,6 @@ class ajudaAi:
     
 if __name__ == "__main__":
 
-    user = ajudaAi("Linux", "Bash", "Pedro", "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")
+    user = ajudaAi("Linux", "Bash", "Pedro", "api-key")
 
     print(user.ask("Como baixar e instalar o vscode pelo terminal usando o gerenciador de pacotes flatpak", explain=False))
