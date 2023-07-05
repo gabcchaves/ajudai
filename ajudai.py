@@ -1,8 +1,106 @@
 # AjudaAI - Assistente virtual para sistemas operacionais baseados em Unix.
-import openai, argparse, os, subprocess
+import openai, argparse, os, subprocess, sqlite3
 
 
-class OAPI():
+# Classe estática para interação com o banco de dados.
+class DB:
+    # Função para retornar o nome do banco de dados.
+    def get_db_name():
+        return "ajudai.db"
+
+
+    # Procedimento para criar estrutura básica do banco de dados.
+    def setup():
+        con = sqlite3.connect(DB.get_db_name())
+
+        try:
+            cur = con.cursor()
+            cur.execute("""
+                CREATE TABLE Chat(
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Title TEXT NOT NULL
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE Interchange(
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    RequestContent TEXT NOT NULL,
+                    ResponseContent TEXT NOT NULL
+                );
+            """)
+        except sqlite3.Error as e:
+            if type(e) != sqlite3.OperationalError:
+                print("Não foi possível criar estrutura básica do banco de dados.")
+                print(e)
+
+        con.close()
+
+
+    # Procedimento para criar uma conversa.
+    def create_chat(title: str):
+        con = sqlite3.connect(DB.get_db_name())
+
+        try:
+            cur = con.cursor()
+            cur.execute("""
+                INSERT INTO Chat (Title)
+                VALUES ({title});
+            """)
+        except sqlite3.Error as e:
+            print("Não foi possível criar nova conversa.")
+            print(e)
+
+        con.close()
+
+
+    # Procedimento para gravar uma mensagem.
+    def record_message(request_content: str, response_content):
+        con = sqlite3.connect(DB.get_db_name())
+
+        try:
+            cur = con.cursor()
+            cur.execute("""
+                INSERT INTO Interchange (RequestContent, ResponseContent)
+                VALUES ({request_content}, {response_content});
+            """)
+        except sqlite3.Error as e:
+            print("Não foi possível gravar troca.")
+            print(e)
+
+        con.close()
+
+
+    # Procedimento para deletar uma conversa.
+    def delete_chat(title: str):
+        con = sqlite3.connect(DB.get_db_name())
+
+        try:
+            cur = con.cursor()
+            cur.execute("""
+                DELETE FROM Chat WHERE Title={title};
+            """)
+        except sqlite3.Error as e:
+            print("Não foi possível deletar a conversa.\n")
+            print(e)
+
+        con.close()
+
+
+    def delete_interchange(iid: str):
+        con = sqlite3.connect(DB.get_db_name())
+
+        try:
+            cur = con.cursor()
+            cur.execute("""
+                DELETE FROM Interchange WHERE Id={iid};
+            """)
+        except sqlite3.Error as e:
+            print("Não foi possível deletar a troca.")
+            print(e)
+
+
+# Classe estática para interação com a OpenAI API.
+class OAPI:
     # Função que retorna nome da variável de ambiente que deve conter a chave
     # OpenAI.
     def get_env_var_api_key_name():
@@ -137,10 +235,12 @@ def parse_cli_args():
 
 
 if __name__ == "__main__":
-    cli_args = parse_cli_args()
-    if len(vars(cli_args)) > 1:
-        cli_args.func(cli_args)
-    elif len(vars(cli_args)) == 1:
-        cli_args.func()
-    else:
-        print("HI")
+    #cli_args = parse_cli_args()
+    #if len(vars(cli_args)) > 1:
+    #    cli_args.func(cli_args)
+    #elif len(vars(cli_args)) == 1:
+    #    cli_args.func()
+    #else:
+    #    print("HI")
+    print("HI")
+    DB.setup()
