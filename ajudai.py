@@ -12,12 +12,12 @@ class OAPI():
     # Procedimento para definir chave da API, se for válida.
     def set_api_key(key: str):
         if not OAPI.is_set_api_key():
-            if OAPI.is_valid_api_key(key):
-                os.putenv(self.get_env_var_api_key_name(), key)
+            if OAPI.is_valid_api_key(key.CHAVE):
+                os.putenv(OAPI.get_env_var_api_key_name(), key.CHAVE)
             else:
                 print("Chave inválida.")
         else:
-            if OAPI.is_valid_api_key(os.getenv(self.get_env_var_api_key_name())):
+            if OAPI.is_valid_api_key(os.getenv(OAPI.get_env_var_api_key_name())):
                 print("Uma sessão já está ativa.")
             else:
                 print("Uma sessão inválida está ativa, e será desativada.")
@@ -25,9 +25,9 @@ class OAPI():
 
 
     # Procedimento para desativar chave da API.
-    def unset_api_key(anything):
+    def unset_api_key():
         if OAPI.is_set_api_key():
-            os.unsetenv(self.get_env_var_api_key_name())
+            os.unsetenv(OAPI.get_env_var_api_key_name())
             print("Desconectado.")
         else:
             print("Nenhuma sessão ativa.")
@@ -44,18 +44,19 @@ class OAPI():
     # Função para verificar se uma chave é válida.
     def is_valid_api_key(key: str):
         try:
-            openai.api_key = os.getenv(self.get_env_var_api_key_name())
-            openai.Completion.create(
+            openai.api_key = key
+            completion = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                prompt="Say this is a test",
-                max_tokens=7,
-                temperature=0
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": "Hello!"}
+                ]
             )
+            print(completion.choices[0].message)
+            return true
         except Exception as e:
-            if type(e) == openai.error.AuthenticationError:
-                return False
-        else:
-            return True
+            print(e)
+            return False
 
 
     # Função para construção da mensagem em linguagem natural a ser enviada ao
@@ -137,4 +138,9 @@ def parse_cli_args():
 
 if __name__ == "__main__":
     cli_args = parse_cli_args()
-    cli_args.func(cli_args)
+    if len(vars(cli_args)) > 1:
+        cli_args.func(cli_args)
+    elif len(vars(cli_args)) == 1:
+        cli_args.func()
+    else:
+        print("HI")
