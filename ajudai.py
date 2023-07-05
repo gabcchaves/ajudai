@@ -1,6 +1,8 @@
 # AjudaAI - Assistente virtual para sistemas operacionais baseados em Unix.
-import openai, argparse
+import openai, argparse, os
 
+# :/
+ENV_KEY_NAME = "OPENAI_API_KEY"
 
 # Função para avaliar argumentos passados ao programa e retornar resultados.
 def parse_cli_args():
@@ -21,12 +23,12 @@ def parse_cli_args():
     subparsers.add_parser("comando", aliases=["c"])
 
     subparsers.choices["conectar"].add_argument("CHAVE")
-    subparsers.choices["conectar"].set_defaults(func=OAPI.login)
-    subparsers.choices["desconectar"].set_defaults(func=OAPI.logout)
+    subparsers.choices["conectar"].set_defaults(func=login)
+    subparsers.choices["desconectar"].set_defaults(func=logout)
     subparsers.choices["pergunta"].add_argument("PERGUNTA")
-    subparsers.choices["pergunta"].set_defaults(OAPI)
+    #subparsers.choices["pergunta"].set_defaults()
     subparsers.choices["comando"].add_argument("COMANDO")
-    subparsers.choices["comando"].set_defaults(OAPI)
+    ##subparsers.choices["comando"].set_defaults()
 
     return parser.parse_args()
 
@@ -39,9 +41,8 @@ class Controller:
 
 # Classe que outorga a interação com a OpenAI API.
 class OAPI:
-    def __init__(self, os_name: str, shell_name: str, user: str, api_key: str):
-        self.os_name = os_name
-        self.shell_name = shell_name
+    def __init__(self, distro_name: str, user: str, api_key: str):
+        self.distro_name = distro_name
         self.user = user
         openai.api_key = api_key
 
@@ -59,16 +60,16 @@ class OAPI:
                             "deve ser escrita na mesma língua que a pergunta")
         
         # Lista que contém todas as informações que criam o prompt ideal
-        prompt_list = [ 
-            (f"Instruções: Escreva um comando CLI que faz o seguinte: {request}.
-                       Tenha certeza de que esse comando está correto e funciona
-                       no {distro_name}. {explain_text}"),
-            (f"Formato: {format_text}"),
-            (f"Caso a explicação não seja pedida de forma explícita mostre apenas
-                       o comando e nenhuma explicação acerca do comando"),
-            (f"Mostre o comando sem o caractere ` ou ´ ou '"),
-            (f"Certifique de usar o formato acima de forma exata"),
-        ]
+        #prompt_list = [ 
+        #    (f"Instruções: Escreva um comando CLI que faz o seguinte: {request}.
+        #               Tenha certeza de que esse comando está correto e funciona
+        #               no {distro_name}. {explain_text}"),
+        #    (f"Formato: {format_text}"),
+        #    (f"Caso a explicação não seja pedida de forma explícita mostre apenas
+        #               o comando e nenhuma explicação acerca do comando"),
+        #    (f"Mostre o comando sem o caractere ` ou ´ ou '"),
+        #    (f"Certifique de usar o formato acima de forma exata"),
+        #]
 
         # Retorna uma string contendo as informações do prompt_list separadas por \n\n
         return "\n\n".join(prompt_list)
@@ -76,6 +77,8 @@ class OAPI:
 
     def ask(self, request: str, explain: bool = False):
         prompt= self.build_prompt(request, self.os_name, self.shell_name, explain=explain)
+
+        openai.api_key = "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"
 
         reponse = openai.ChatCompletion.create(
             model = "gpt-3.5-turbo",
@@ -90,17 +93,39 @@ class OAPI:
         return reponse["choices"][0]["message"]["content"]
 
     
-    def login():
-        print("Conectar")
+def login(key: str):
+    if "OPENAI_API_KEY" in os.environ.keys():
+        print("Você tem uma sessão ativa.\nPara desativá-la, use o sub-comando"
+              "'desconectar'.")
+    else:
+        # Teste de validade da chave.
+        try:
+            openai.api_key = key
+            openai.Completion.create(
+                model="gpt-3.5-turbo",
+                prompt="Say this is a test",
+                max_tokens=7,
+                temperature=0
+            )
+        except Exception as e:
+            if type(e) == openai.error.AuthenticationError:
+                print("Chave inválida.")
+        else:
+            os.putenv("OPENAI_API_KEY", key)
+            print("Conexão exitosa.")
 
 
-    def logout():
-        print("Desconectar")
+def logout(anything):
+    if ENV_KEY_NAME in os.environ.keys():
+        os.unsetenv(ENV_KEY_NAME)
+        print("Desconectado")
+    else:
+        print("Nenhuma sessão ativa.")
 
 
 if __name__ == "__main__":
     cli_args = parse_cli_args()
-    cli_args.func()
+    cli_args.func(cli_args)
 
     #user = ajudaAi("Linux", "Bash", "Pedro", "api-key")
 
