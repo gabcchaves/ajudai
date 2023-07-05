@@ -1,20 +1,23 @@
 # AjudaAI - Assistente virtual para sistemas operacionais baseados em Unix.
-import openai, argparse, os
+import openai, argparse, os, subprocess
 
 
 class OAPI():
-    _ENV_API_KEY_NAME = "OPENAI_API_KEY"
+    # Função que retorna nome da variável de ambiente que deve conter a chave
+    # OpenAI.
+    def get_env_var_api_key_name():
+        return "OPENAI_API_KEY"
 
 
     # Procedimento para definir chave da API, se for válida.
     def set_api_key(key: str):
         if not OAPI.is_set_api_key():
             if OAPI.is_valid_api_key(key):
-                os.putenv(self._ENV_API_KEY_NAME, key)
+                os.putenv(self.get_env_var_api_key_name(), key)
             else:
                 print("Chave inválida.")
         else:
-            if OAPI.is_valid_api_key(os.getenv(self._ENV_API_KEY_NAME)):
+            if OAPI.is_valid_api_key(os.getenv(self.get_env_var_api_key_name())):
                 print("Uma sessão já está ativa.")
             else:
                 print("Uma sessão inválida está ativa, e será desativada.")
@@ -24,7 +27,7 @@ class OAPI():
     # Procedimento para desativar chave da API.
     def unset_api_key(anything):
         if OAPI.is_set_api_key():
-            os.unsetenv(_ENV_API_KEY_NAME)
+            os.unsetenv(self.get_env_var_api_key_name())
             print("Desconectado.")
         else:
             print("Nenhuma sessão ativa.")
@@ -32,7 +35,7 @@ class OAPI():
 
     # Função para verificar se uma chave está definida.
     def is_set_api_key():
-        if OAPI._ENV_API_KEY_NAME in os.environ.keys():
+        if OAPI.get_env_var_api_key_name() in os.environ.keys():
             return True
         else:
             return False
@@ -41,7 +44,7 @@ class OAPI():
     # Função para verificar se uma chave é válida.
     def is_valid_api_key(key: str):
         try:
-            openai.api_key = os.getenv(self._ENV_API_KEY_NAME)
+            openai.api_key = os.getenv(self.get_env_var_api_key_name())
             openai.Completion.create(
                 model="gpt-3.5-turbo",
                 prompt="Say this is a test",
@@ -55,20 +58,52 @@ class OAPI():
             return True
 
 
-    def submit(self, request: str, explain: bool = False):
-        prompt= self.build_prompt(request, self.os_name, self.shell_name, explain=explain)
+    # Função para construção da mensagem em linguagem natural a ser enviada ao
+    # modelo de linguagem.
+    def build_prompt(request: str, explain: bool = False):
+        distro_name = subprocess.check_output(["lsb_release", "-d", "-s"])
+        explain_text = ""
+        format_text = "Comando: <inserir comando aqui>"
 
-        reponse = openai.ChatCompletion.create(
-            model = "gpt-3.5-turbo",
-            messages = [
-                {"role": "system", "content": "Você é uma aplicação CLI que gera comandos de terminal"},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens = 300 if explain else 180,
-            temperature = 0
-        )
+        if explain:
+            explain_text = ("Também quero uma explicação detalhada sobre o"
+                "código e como ele funciona")
+            format_text += ("\nDescrição: <inserir descrição aqui>\nA descrição"
+                            "deve ser escrita na mesma língua que a pergunta")
+        
+        prompt_list = [ 
+            (f"Instruções: Escreva um comando CLI que faz o seguinte:"
+            f"{request}. Tenha certeza de que esse comando está correto e"
+            f"funciona no {distro_name}. {explain_text}"),
+            (f"Formato: {format_text}"),
+            (f"Caso a explicação não seja pedida de forma explícita mostre"
+            f"apenas o comando e nenhuma explicação acerca do comando"),
+            (f"Mostre o comando sem o caractere ` ou ´ ou '"),
+            (f"Certifique de usar o formato acima de forma exata"),
+        ]
 
-        return reponse["choices"][0]["message"]["content"]
+        return "\n\n".join(prompt_list)
+
+
+    def submit(request: str, explain: bool = False):
+        prompt= OAPI.build_prompt(request, explain=explain)
+
+        try:
+            reponse = openai.ChatCompletion.create(
+                model = "gpt-3.5-turbo",
+                messages = [
+                    {"role": "system", "content": "Você é uma aplicação CLI que gera comandos de terminal"},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens = 300 if explain else 180,
+                temperature = 0
+            )
+
+            return reponse["choices"][0]["message"]["content"]
+        except Exception as e:
+            if type(e) == openai.error.AuthenticationError:
+                print("Nenhuma sessão ativa. Conecte-se usando o subcomando"
+                    "'conectar")
 
 
 # Função para avaliar argumentos passados ao programa e retornar resultados.
@@ -93,53 +128,13 @@ def parse_cli_args():
     subparsers.choices["conectar"].set_defaults(func=OAPI.set_api_key)
     subparsers.choices["desconectar"].set_defaults(func=OAPI.unset_api_key)
     subparsers.choices["pergunta"].add_argument("PERGUNTA")
-    #subparsers.choices["pergunta"].set_defaults()
+    subparsers.choices["pergunta"].set_defaults(func=OAPI.submit)
     subparsers.choices["comando"].add_argument("COMANDO")
-    ##subparsers.choices["comando"].set_defaults()
+    subparsers.choices["comando"].set_defaults(func=OAPI.submit)
 
     return parser.parse_args()
-
-
-## Classe que outorga a interação com a OpenAI API.
-#class OAPI:
-#    def __init__(self, distro_name: str, user: str, api_key: str):
-#        self.distro_name = distro_name
-#        self.user = user
-#        openai.api_key = api_key
-#
-#
-#    # 'explain' é um parâmetro opcional para determinar se uma explicação será
-#    # fornecida ao usuário.
-#    def build_prompt(self, distro_name, request: str, explain: bool = False):
-#        explain_text = ""
-#        format_text = "Comando: <inserir comando aqui>"
-#
-#        if explain:
-#            explain_text = ("Também quero uma explicação detalhada sobre o"
-#                "código e como ele funciona")
-#            format_text += ("\nDescrição: <inserir descrição aqui>\nA descrição"
-#                            "deve ser escrita na mesma língua que a pergunta")
-#        
-#        # Lista que contém todas as informações que criam o prompt ideal
-#        #prompt_list = [ 
-#        #    (f"Instruções: Escreva um comando CLI que faz o seguinte: {request}.
-#        #               Tenha certeza de que esse comando está correto e funciona
-#        #               no {distro_name}. {explain_text}"),
-#        #    (f"Formato: {format_text}"),
-#        #    (f"Caso a explicação não seja pedida de forma explícita mostre apenas
-#        #               o comando e nenhuma explicação acerca do comando"),
-#        #    (f"Mostre o comando sem o caractere ` ou ´ ou '"),
-#        #    (f"Certifique de usar o formato acima de forma exata"),
-#        #]
-#
-#        # Retorna uma string contendo as informações do prompt_list separadas por \n\n
-#        return "\n\n".join(prompt_list)
 
 
 if __name__ == "__main__":
     cli_args = parse_cli_args()
     cli_args.func(cli_args)
-
-    #user = ajudaAi("Linux", "Bash", "Pedro", "api-key")
-
-    #print(user.ask("Como baixar e instalar o vscode pelo terminal usando o gerenciador de pacotes flatpak", explain=False))
