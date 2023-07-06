@@ -1,12 +1,13 @@
+#! /usr/bin/env python3
 # AjudaAI - Assistente virtual para sistemas operacionais baseados em Unix.
-import openai, argparse, os, subprocess, sqlite3
+import openai, argparse, os, subprocess, sqlite3, textwrap
 
 
 # Classe estática para interação com o banco de dados.
 class DB:
     # Função para retornar o nome do banco de dados.
     def get_db_name():
-        return "ajudai.db"
+        return "/home/gabriel/Dev/remote/involved/ajudai/ajudai.db"
 
 
     # Procedimento para criar estrutura básica do banco de dados.
@@ -330,7 +331,10 @@ class OAPI:
 
             if question:
                 resc = response["choices"][0]["message"]["content"]
-                print(resc)
+                width_term = shutil.get_terminal_size().columns
+                width_text = int(term_width * 0.8)
+                text = textwrap.fill(resc, width=width_text)
+                print(text)
                 DB.record_interchange(request, resc, 1)
             else:
                 commands = response["choices"][0]["message"]["content"].split("&&")
