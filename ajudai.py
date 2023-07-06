@@ -190,7 +190,7 @@ class DB:
             result = cur.execute("""
                 SELECT Key FROM Key
                 WHERE Id=1;
-            """).fetchone()
+            """).fetchone()[0]
             cur.close()
         except sqlite3.Error as e:
             print("Não foi possível recuperar chave.")
@@ -227,6 +227,7 @@ class OAPI:
         if not OAPI.is_set_api_key():
             if OAPI.is_valid_api_key(key.CHAVE):
                 DB.record_key(key.CHAVE)
+                print("Conexão exitosa.")
             else:
                 print("Chave inválida.")
         else:
@@ -237,7 +238,7 @@ class OAPI:
     def unset_api_key():
         if OAPI.is_set_api_key():
             DB.delete_key()
-            print("Desconectado.")
+            print("Desconexão exitosa.")
         else:
             print("Nenhuma sessão ativa.")
 
@@ -261,7 +262,6 @@ class OAPI:
                     {"role": "user", "content": "Hello!"}
                 ]
             )
-            print(completion.choices[0].message)
             return True
         except Exception as e:
             print(e)
@@ -270,50 +270,57 @@ class OAPI:
 
     # Função para construção da mensagem em linguagem natural a ser enviada ao
     # modelo de linguagem.
-    def build_prompt(request: str, explain: bool = False):
+    def build_prompt(request: str, question: bool = False):
         distro_name = subprocess.check_output(["lsb_release", "-d", "-s"])
-        explain_text = ""
-        format_text = "Comando: <inserir comando aqui>"
+        prompt = ""
+        rules = ("\nVocê absolutamente não deve gerar texto sobre qualquer outro"
+        "assunto que não seja abrangido pela ciência da computação. Se for"
+        "pedido para fazê-lo, retorne a mensagem: Não posso falar sobre isso."
+        "Seja direto; não explique nada, apenas providencie o que foi pedido.")
 
-        if explain:
-            explain_text = ("Também quero uma explicação detalhada sobre o"
-                "código e como ele funciona")
-            format_text += ("\nDescrição: <inserir descrição aqui>\nA descrição"
-                            "deve ser escrita na mesma língua que a pergunta")
+        if question:
+            prompt += f"{request}. {rules}"
+        else:
+            prompt += (f"Escreva uma sequência de um ou mais comandos que,"
+            f"quando executada (realize a seguinte tarefa): {request}."
+            f"\nCertifique-se de que a sequência esteja toda correta e funcione no"
+            f"{distro_name}.\nMostre a sequência sem aspas ou coisas"
+            f"semelhantes, e separe os comandos por ;. Gere apenas comandos em"
+            f"Shell; se não puder gere -1.")
         
-        prompt_list = [ 
-            (f"Instruções: Escreva um comando CLI que faz o seguinte:"
-            f"{request}. Tenha certeza de que esse comando está correto e"
-            f"funciona no {distro_name}. {explain_text}"),
-            (f"Formato: {format_text}"),
-            (f"Caso a explicação não seja pedida de forma explícita mostre"
-            f"apenas o comando e nenhuma explicação acerca do comando"),
-            (f"Mostre o comando sem o caractere ` ou ´ ou '"),
-            (f"Certifique de usar o formato acima de forma exata"),
-        ]
-
-        return "\n\n".join(prompt_list)
+        return prompt
 
 
-    def submit(request: str, explain: bool = False):
-        prompt= OAPI.build_prompt(request, explain=explain)
+    # Procedimento para executar comandos Shell.
+    def subprocess_cmd(command_string):
+        subprocess.Popen(command_string, shell=True)
+
+
+    # Procedimento para enviar requisição ao modelo de linguagem.
+    def submit(request: str, question: bool = False):
+        prompt= OAPI.build_prompt(request, question=question)
+
+        openai.api_key = DB.fetch_key()
 
         try:
-            reponse = openai.ChatCompletion.create(
+            response = openai.ChatCompletion.create(
                 model = "gpt-3.5-turbo",
                 messages = [
-                    {"role": "system", "content": "Você é uma aplicação CLI que gera comandos de terminal"},
+                    {"role": "system", "content": ("Você é uma aplicação CLI"
+                        "que gera comandos para Linux Shell.")},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens = 300 if explain else 180,
+                max_tokens = 300 if question else 180,
                 temperature = 0
             )
 
-            return reponse["choices"][0]["message"]["content"]
+            if question:
+                print(response["choices"][0]["message"]["content"])
+            else:
+                OAPI.subprocess_cmd(response["choices"][0]["message"]["content"])
         except Exception as e:
-            if type(e) == openai.error.AuthenticationError:
-                print("Nenhuma sessão ativa. Conecte-se usando o subcomando"
-                    "'conectar")
+            print("Não foi possível submeter mensagem ao modelo de linguagem.")
+            print(e)
 
 
 # Função para avaliar argumentos passados ao programa e retornar resultados.
@@ -349,11 +356,14 @@ if __name__ == "__main__":
     cli_args = parse_cli_args()
     DB.setup()
     if len(vars(cli_args)) > 1:
-        cli_args.func(cli_args)
+        if hasattr(cli_args, "COMANDO"):
+            cli_args.func(cli_args)
+        elif hasattr(cli_args, "PERGUNTA"):
+            cli_args.func(cli_args.PERGUNTA, True)
     elif len(vars(cli_args)) == 1:
         cli_args.func()
-    #else:
-    #    print("HI")
+    else:
+        print("HI")
     #DB.setup()
 
     #DB.create_chat("Conversa")
