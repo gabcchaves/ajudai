@@ -276,7 +276,9 @@ class OAPI:
         rules = ("\nVocê absolutamente não deve gerar texto sobre qualquer outro"
         "assunto que não seja abrangido pela ciência da computação. Se for"
         "pedido para fazê-lo, retorne a mensagem: Não posso falar sobre isso."
-        "Seja direto; não explique nada, apenas providencie o que foi pedido.")
+        "Seja direto; não explique nada, apenas providencie o que foi pedido."
+        "Você não precisa dizer que não pode falar de outro assunto se o"
+        "usuário não inquiriu sobre outro assunto.")
 
         if question:
             prompt += f"{request}. {rules}"
@@ -285,15 +287,27 @@ class OAPI:
             f"quando executada (realize a seguinte tarefa): {request}."
             f"\nCertifique-se de que a sequência esteja toda correta e funcione no"
             f"{distro_name}.\nMostre a sequência sem aspas ou coisas"
-            f"semelhantes, e separe os comandos por ;. Gere apenas comandos em"
+            f"semelhantes, e separe os comandos por &&. Gere apenas comandos em"
             f"Shell; se não puder gere -1.")
         
         return prompt
 
 
     # Procedimento para executar comandos Shell.
-    def subprocess_cmd(command_string):
-        subprocess.Popen(command_string, shell=True)
+    def subprocess_cmd(commands):
+        for cmd in commands:
+            if "sudo" in cmd:
+                try:
+                    p = subprocess.Popen(cmd, shell=True)
+                    psswd = input()
+                    p.communicate("{}\n".format(psswd))
+                except KeyboardInterrupt:
+                    print("Comando interrompido.")
+            else:
+                try:
+                    subprocess.Popen(cmd, shell=True)
+                except KeyboardInterrupt:
+                    print("Comando interrompido.")
 
 
     # Procedimento para enviar requisição ao modelo de linguagem.
@@ -315,9 +329,12 @@ class OAPI:
             )
 
             if question:
-                print(response["choices"][0]["message"]["content"])
+                resc = response["choices"][0]["message"]["content"]
+                print(resc)
+                DB.record_interchange(request, resc, 1)
             else:
-                OAPI.subprocess_cmd(response["choices"][0]["message"]["content"])
+                commands = response["choices"][0]["message"]["content"].split("&&")
+                OAPI.subprocess_cmd(commands)
         except Exception as e:
             print("Não foi possível submeter mensagem ao modelo de linguagem.")
             print(e)
