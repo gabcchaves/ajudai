@@ -17,22 +17,26 @@ class DB:
             cur = con.cursor()
             cur.execute("""
                 CREATE TABLE Chat(
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    Title TEXT NOT NULL
+                    Id INTEGER,
+                    Title TEXT NOT NULL,
+                    PRIMARY KEY (Id)
                 );
             """)
             cur.execute("""
                 CREATE TABLE Interchange(
-                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Id INTEGER,
+                    IdChat INTEGER,
                     RequestContent TEXT NOT NULL,
-                    ResponseContent TEXT NOT NULL
+                    ResponseContent TEXT NOT NULL,
+                    PRIMARY KEY (Id),
+                    FOREIGN KEY (IdChat) REFERENCES Chat(Id)
                 );
             """)
+            cur.close()
         except sqlite3.Error as e:
-            if type(e) != sqlite3.OperationalError:
-                print("Não foi possível criar estrutura básica do banco de dados.")
-                print(e)
+            print(e)
 
+        con.commit()
         con.close()
 
 
@@ -43,60 +47,112 @@ class DB:
         try:
             cur = con.cursor()
             cur.execute("""
-                INSERT INTO Chat (Title)
-                VALUES ({title});
-            """)
+                INSERT INTO Chat (Title) VALUES ('{title}');
+            """.format(title=title))
+            cur.close()
         except sqlite3.Error as e:
             print("Não foi possível criar nova conversa.")
             print(e)
 
+        con.commit()
         con.close()
 
 
     # Procedimento para gravar uma mensagem.
-    def record_message(request_content: str, response_content):
+    def record_interchange(reqc: str, resc: str, chat_id: int):
         con = sqlite3.connect(DB.get_db_name())
 
         try:
             cur = con.cursor()
             cur.execute("""
-                INSERT INTO Interchange (RequestContent, ResponseContent)
-                VALUES ({request_content}, {response_content});
-            """)
+                INSERT INTO Interchange(RequestContent, ResponseContent, IdChat)
+                VALUES ('{req}', '{res}', '{chat_id}');"""
+                .format(req=reqc, res=resc, chat_id=chat_id)
+            )
+            cur.close()
         except sqlite3.Error as e:
-            print("Não foi possível gravar troca.")
+            print("Não foi possível gravar troca de mensagem.")
             print(e)
 
+        con.commit()
         con.close()
 
 
     # Procedimento para deletar uma conversa.
-    def delete_chat(title: str):
+    def delete_chat(chat_id: int):
         con = sqlite3.connect(DB.get_db_name())
 
         try:
             cur = con.cursor()
             cur.execute("""
-                DELETE FROM Chat WHERE Title={title};
-            """)
+                DELETE FROM Chat WHERE Id='{chat_id}';
+            """.format(title=title))
+            cur.close()
         except sqlite3.Error as e:
             print("Não foi possível deletar a conversa.\n")
             print(e)
 
+        con.commit()
         con.close()
 
 
-    def delete_interchange(iid: str):
+    # Procedimento para deletar uma troca de mensagem.
+    def delete_interchange(iid: int):
         con = sqlite3.connect(DB.get_db_name())
 
         try:
             cur = con.cursor()
             cur.execute("""
-                DELETE FROM Interchange WHERE Id={iid};
-            """)
+                DELETE FROM Interchange WHERE Id='{iid}';
+            """.format(iid=iid))
+            cur.close()
         except sqlite3.Error as e:
-            print("Não foi possível deletar a troca.")
+            print("Não foi possível deletar a troca de mensagem.")
             print(e)
+
+        con.commit()
+        con.close()
+
+
+    # Função para consultar todas as conversas.
+    def fetch_chats():
+        con = sqlite3.connect(DB.get_db_name())
+
+        result = None
+        try:
+            cur = con.cursor()
+            result = cur.execute("""
+                SELECT * FROM Chat;
+            """).fetchall()
+            cur.close()
+        except sqlite3.Error as e:
+            print("Não foi possível recuperar as conversas.")
+            print(e)
+
+        con.commit()
+        con.close()
+        return result
+
+
+    # Função para consultar as mensagens de uma conversa.
+    def fetch_messages(chat_id: int):
+        con = sqlite3.connect(DB.get_db_name())
+
+        result = None
+        try:
+            cur = con.cursor()
+            result = cur.execute("""
+                SELECT * FROM Interchange
+                WHERE IdChat='{chat_id}';
+            """.format(chat_id=chat_id)).fetchall()
+            cur.close()
+        except sqlite3.Error as e:
+            print("Não foi possível recuperar as mensagens da conversa.")
+            print(e)
+
+        con.commit()
+        con.close()
+        return result
 
 
 # Classe estática para interação com a OpenAI API.
@@ -242,5 +298,9 @@ if __name__ == "__main__":
     #    cli_args.func()
     #else:
     #    print("HI")
-    print("HI")
     DB.setup()
+
+    DB.create_chat("Conversa")
+    DB.record_interchange("Vai", "Vem", 1)
+    print(DB.fetch_chats())
+    print(DB.fetch_messages("1"))
