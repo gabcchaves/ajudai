@@ -16,20 +16,26 @@ class DB:
         try:
             cur = con.cursor()
             cur.execute("""
-                CREATE TABLE Chat(
+                CREATE TABLE IF NOT EXISTS Chat(
                     Id INTEGER,
                     Title TEXT NOT NULL,
                     PRIMARY KEY (Id)
                 );
             """)
             cur.execute("""
-                CREATE TABLE Interchange(
+                CREATE TABLE IF NOT EXISTS Interchange(
                     Id INTEGER,
                     IdChat INTEGER,
                     RequestContent TEXT NOT NULL,
                     ResponseContent TEXT NOT NULL,
                     PRIMARY KEY (Id),
                     FOREIGN KEY (IdChat) REFERENCES Chat(Id)
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS Key(
+                    Id INTEGER PRIMARY KEY,
+                    Key TEXT NOT NULL
                 );
             """)
             cur.close()
@@ -155,33 +161,82 @@ class DB:
         return result
 
 
+    # Procedimento para gravar uma chave.
+    def record_key(api_key: str):
+        con = sqlite3.connect(DB.get_db_name())
+
+        try:
+            cur = con.cursor()
+            cur.execute("""
+                INSERT INTO Key(Key)
+                VALUES ('{api_key}');
+            """.format(api_key=api_key))
+            cur.close()
+        except sqlite3.Error as e:
+            print("Não foi possível gravar chave.")
+            print(e)
+            
+        con.commit()
+        con.close()
+
+
+    # Função para recuperar chave.
+    def fetch_key():
+        con = sqlite3.connect(DB.get_db_name())
+
+        result = None
+        try:
+            cur = con.cursor()
+            result = cur.execute("""
+                SELECT Key FROM Key
+                WHERE Id=1;
+            """).fetchone()
+            cur.close()
+        except sqlite3.Error as e:
+            print("Não foi possível recuperar chave.")
+            print(e)
+
+        con.commit()
+        con.close()
+        return result
+
+
+    # Procedimento para deletar chave.
+    def delete_key():
+        con = sqlite3.connect(DB.get_db_name())
+
+        try:
+            cur = con.cursor()
+            cur.execute("""
+                DELETE FROM Key
+                WHERE Id=1;
+            """)
+            cur.close()
+        except sqlite3.Error as e:
+            print("Não foi possível deletar chave.")
+            print(e)
+
+        con.commit()
+        con.close()
+
+
 # Classe estática para interação com a OpenAI API.
 class OAPI:
-    # Função que retorna nome da variável de ambiente que deve conter a chave
-    # OpenAI.
-    def get_env_var_api_key_name():
-        return "OPENAI_API_KEY"
-
-
     # Procedimento para definir chave da API, se for válida.
     def set_api_key(key: str):
         if not OAPI.is_set_api_key():
             if OAPI.is_valid_api_key(key.CHAVE):
-                os.putenv(OAPI.get_env_var_api_key_name(), key.CHAVE)
+                DB.record_key(key.CHAVE)
             else:
                 print("Chave inválida.")
         else:
-            if OAPI.is_valid_api_key(os.getenv(OAPI.get_env_var_api_key_name())):
-                print("Uma sessão já está ativa.")
-            else:
-                print("Uma sessão inválida está ativa, e será desativada.")
-                OAPI.unset_api_key()
+            print("Uma sessão já está ativa.")
 
 
     # Procedimento para desativar chave da API.
     def unset_api_key():
         if OAPI.is_set_api_key():
-            os.unsetenv(OAPI.get_env_var_api_key_name())
+            DB.delete_key()
             print("Desconectado.")
         else:
             print("Nenhuma sessão ativa.")
@@ -189,7 +244,7 @@ class OAPI:
 
     # Função para verificar se uma chave está definida.
     def is_set_api_key():
-        if OAPI.get_env_var_api_key_name() in os.environ.keys():
+        if DB.fetch_key() != None:
             return True
         else:
             return False
@@ -207,7 +262,7 @@ class OAPI:
                 ]
             )
             print(completion.choices[0].message)
-            return true
+            return True
         except Exception as e:
             print(e)
             return False
@@ -291,16 +346,17 @@ def parse_cli_args():
 
 
 if __name__ == "__main__":
-    #cli_args = parse_cli_args()
-    #if len(vars(cli_args)) > 1:
-    #    cli_args.func(cli_args)
-    #elif len(vars(cli_args)) == 1:
-    #    cli_args.func()
+    cli_args = parse_cli_args()
+    DB.setup()
+    if len(vars(cli_args)) > 1:
+        cli_args.func(cli_args)
+    elif len(vars(cli_args)) == 1:
+        cli_args.func()
     #else:
     #    print("HI")
-    DB.setup()
+    #DB.setup()
 
-    DB.create_chat("Conversa")
-    DB.record_interchange("Vai", "Vem", 1)
-    print(DB.fetch_chats())
-    print(DB.fetch_messages("1"))
+    #DB.create_chat("Conversa")
+    #DB.record_interchange("Vai", "Vem", 1)
+    #print(DB.fetch_chats())
+    #print(DB.fetch_messages("1"))
